@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhotoID Print Studio - Planches Photo d'Identité 35x45 mm</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Masquer la scrollbar tout en conservant le défilement */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Repères de découpe et cadre de recadrage */
+    .crop-overlay-guides {
+      background: radial-gradient(ellipse at 50% 40%, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.4) 100%);
+    }
+
+    /* Style d'impression physique précise */
+    @media print {
+      body * {
+        visibility: hidden !important;
+      }
+      #print-mount-point, #print-mount-point * {
+        visibility: visible !important;
+      }
+      #print-mount-point {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        width: 100% !important;
+        height: 100% !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+      }
+      @page {
+        size: auto;
+        margin: 0mm;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans transition-colors duration-200">
+
+  <!-- En-tête -->
+  <header class="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+          <i class="ph-bold ph-identification-card text-2xl"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight">PhotoID <span class="text-blue-600 dark:text-blue-400 font-semibold text-sm px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800">Print Studio</span></h1>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Norme biométrique 35×45 mm • 300 DPI</p>
+        </div>
+      </div>
+
+      <!-- Contrôles rapides & thème -->
+      <div class="flex items-center gap-3">
+        <button id="theme-toggle" class="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Basculer le thème">
+          <i class="ph ph-moon text-xl block dark:hidden"></i>
+          <i class="ph ph-sun text-xl hidden dark:block"></i>
+        </button>
+        <button onclick="document.getElementById('file-input').click()" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm shadow-blue-600/30 transition">
+          <i class="ph-bold ph-upload-simple"></i>
+          <span class="hidden sm:inline">Ajouter des photos</span>
+        </button>
+        <input type="file" id="file-input" multiple accept="image/*" class="hidden">
+      </div>
+    </div>
+  </header>
+
+  <!-- Zone de contenu principale -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+    
+    <!-- Colonne GAUCHE : Gestion des photos + Recadrage (5 cols) -->
+    <section class="lg:col-span-5 flex flex-col gap-6">
+      
+      <!-- Sélecteur & Galerie des photos importées -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold flex items-center gap-2">
+            <i class="ph-bold ph-images text-blue-500"></i>
+            Photos importées (<span id="photo-count">0</span>/12)
+          </h2>
+          <button id="clear-all-btn" class="text-xs text-slate-400 hover:text-rose-500 transition hidden">Tout effacer</button>
+        </div>
+
+        <!-- Zone Glisser-Déposer / Liste -->
+        <div id="drop-zone" class="border-2 border-dashed border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 rounded-xl p-4 text-center cursor-pointer transition bg-slate-50/50 dark:bg-slate-800/40">
+          <i class="ph ph-cloud-arrow-up text-3xl text-slate-400 dark:text-slate-500 mb-1"></i>
+          <p class="text-xs font-medium text-slate-700 dark:text-slate-300">Glissez-déposez vos portraits ici</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">ou cliquez pour parcourir vos fichiers</p>
+        </div>
+
+        <!-- Galerie Vignettes -->
+        <div id="gallery-container" class="mt-4 grid grid-cols-4 gap-2.5 max-h-48 overflow-y-auto no-scrollbar p-0.5">
+          <!-- Vignettes injectées via JS -->
+        </div>
+      </div>
+
+      <!-- Atelier de recadrage interactif (Ratio 35x45) -->
+      <div id="crop-section" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-sm font-semibold flex items-center gap-2">
+              <i class="ph-bold ph-crop text-blue-500"></i>
+              Ajustement du visage (35 × 45 mm)
+            </h2>
+            <p class="text-xs text-slate-400">Glissez l'image et ajustez le zoom</p>
+          </div>
+          <button id="reset-crop-btn" class="text-xs px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition">
+            Réinitialiser
+          </button>
+        </div>
+
+        <!-- Visualiseur de Crop avec Masque Oval ID Officiel -->
+        <div class="relative w-full aspect-[35/45] max-w-[280px] mx-auto rounded-xl overflow-hidden shadow-inner border border-slate-300 dark:border-slate-700 select-none bg-slate-900">
+          <canvas id="crop-canvas" class="w-full h-full cursor-grab active:cursor-grabbing block"></canvas>
+
+          <!-- Guide visuel officiel (normes ICAO / ANTS : sommet tête, yeux, menton) -->
+          <div id="crop-guide" class="pointer-events-none absolute inset-0 border border-blue-400/30 flex flex-col justify-between p-3">
+            <!-- Limite supérieure crâne (70-80% de la hauteur) -->
+            <div class="w-full border-b border-dashed border-amber-400/60 text-[9px] text-amber-300/80 tracking-widest text-right pr-1">HAUT DU CRÂNE</div>
+            <!-- Ligne des yeux -->
+            <div class="w-full border-b border-blue-400/60 text-[9px] text-blue-300/80 tracking-widest text-right pr-1">YEUX</div>
+            <!-- Ovale ergonomique silhouette visage -->
+            <div class="absolute inset-x-8 top-6 bottom-10 rounded-[50%/45%] border border-emerald-400/50"></div>
+            <!-- Ligne du bas du menton -->
+            <div class="w-full border-b border-dashed border-amber-400/60 text-[9px] text-amber-300/80 tracking-widest text-right pr-1">MENTON</div>
+          </div>
+        </div>
+
+        <!-- Contrôles du Crop -->
+        <div class="mt-5 space-y-4">
+          <div>
+            <div class="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+              <span class="flex items-center gap-1"><i class="ph ph-magnifying-glass-plus"></i> Zoom</span>
+              <span id="zoom-label">1.0x</span>
+            </div>
+            <input type="range" id="zoom-slider" min="0.5" max="3" step="0.02" value="1" class="w-full accent-blue-600 cursor-pointer">
+          </div>
+
+          <div class="flex items-center justify-between text-xs pt-1">
+            <label class="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-300">
+              <input type="checkbox" id="toggle-guide-cb" checked class="rounded text-blue-600 focus:ring-blue-500">
+              <span>Afficher les guides officiels</span>
+            </label>
+            <span class="text-[11px] text-slate-400">Molette pour zoomer</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Colonne DROITE : Configuration & Aperçu de la Planche (7 cols) -->
+    <section class="lg:col-span-7 flex flex-col gap-6">
+      
+      <!-- Panneau de Paramètres de Planche -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+        <h2 class="text-sm font-semibold flex items-center gap-2 mb-4">
+          <i class="ph-bold ph-sliders-horizontal text-blue-500"></i>
+          Configuration d'impression
+        </h2>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Format de Sortie -->
+          <div>
+            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">Format du papier</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" id="format-10x15-btn" class="format-btn active border-2 border-blue-600 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded-xl py-2 px-3 text-xs font-semibold flex flex-col items-center gap-1 transition">
+                <i class="ph-bold ph-film-strip text-base"></i>
+                <span>10 × 15 cm</span>
+                <span class="text-[10px] opacity-75 font-normal">(6 photos - 4×6")</span>
+              </button>
+              <button type="button" id="format-a4-btn" class="format-btn border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300 rounded-xl py-2 px-3 text-xs font-semibold flex flex-col items-center gap-1 transition">
+                <i class="ph-bold ph-file-text text-base"></i>
+                <span>Feuille A4</span>
+                <span class="text-[10px] opacity-75 font-normal">(24 photos ou 4×6)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Mode de Remplissage -->
+          <div>
+            <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1.5">Remplissage des photos</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" id="fill-repeat-btn" class="fill-mode-btn active border-2 border-blue-600 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded-xl py-2 px-3 text-xs font-semibold flex flex-col items-center gap-1 transition">
+                <i class="ph-bold ph-copy text-base"></i>
+                <span>Répéter la photo</span>
+                <span class="text-[10px] opacity-75 font-normal">Même personne (x6)</span>
+              </button>
+              <button type="button" id="fill-mix-btn" class="fill-mode-btn border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300 rounded-xl py-2 px-3 text-xs font-semibold flex flex-col items-center gap-1 transition">
+                <i class="ph-bold ph-users-three text-base"></i>
+                <span>Mélanger photos</span>
+                <span class="text-[10px] opacity-75 font-normal">Planche collective</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Options avancées : repères de coupe -->
+        <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <label class="flex items-center gap-2 cursor-pointer text-slate-600 dark:text-slate-300">
+            <input type="checkbox" id="crop-lines-cb" checked class="rounded text-blue-600 focus:ring-blue-500">
+            <span>Traits de coupe ultra-fins pour découpe facile aux ciseaux/cutter</span>
+          </label>
+          <span class="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+            <i class="ph-bold ph-check-circle"></i> Calibré 300 DPI
+          </span>
+        </div>
+      </div>
+
+      <!-- Aperçu de la planche en direct -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col items-center">
+        <div class="w-full flex items-center justify-between mb-3">
+          <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Aperçu avant impression</span>
+          <span id="preview-dimension-label" class="text-xs text-slate-400">10 × 15 cm • 1772 × 1181 px</span>
+        </div>
+
+        <!-- Conteneur avec ombre pour simuler la feuille de papier -->
+        <div class="relative w-full overflow-hidden flex items-center justify-center p-4 bg-slate-100 dark:bg-slate-950/70 rounded-xl border border-slate-200 dark:border-slate-800 min-h-[320px]">
+          <canvas id="preview-canvas" class="max-w-full max-h-[500px] h-auto object-contain shadow-2xl rounded-sm bg-white"></canvas>
+          <div id="no-photo-placeholder" class="text-center p-6 text-slate-400 hidden">
+            <i class="ph ph-image text-5xl mb-2 opacity-50"></i>
+            <p class="text-sm font-medium">Chargez au moins une photo pour générer la planche</p>
+          </div>
+        </div>
+
+        <!-- Boutons d'Action & Téléchargement -->
+        <div class="w-full grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
+          <button id="download-png-btn" class="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white py-3 px-4 rounded-xl text-sm font-semibold shadow-md shadow-blue-500/20 transition">
+            <i class="ph-bold ph-download-simple text-lg"></i>
+            <span>Télécharger HD (300 DPI)</span>
+          </button>
+          
+          <button id="download-jpg-btn" class="flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-3 px-4 rounded-xl text-sm font-semibold transition">
+            <i class="ph-bold ph-file-jpg text-lg"></i>
+            <span>Format JPG</span>
+          </button>
+
+          <button id="print-direct-btn" class="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white py-3 px-4 rounded-xl text-sm font-semibold shadow-md shadow-emerald-600/20 transition">
+            <i class="ph-bold ph-printer text-lg"></i>
+            <span>Imprimer direct</span>
+          </button>
+        </div>
+
+        <!-- Conseil d'impression -->
+        <div class="mt-4 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-xl w-full text-xs text-blue-800 dark:text-blue-300 flex items-start gap-2.5">
+          <i class="ph-fill ph-info text-base text-blue-500 shrink-0 mt-0.5"></i>
+          <span><strong>Conseil d'impression :</strong> Dans les paramètres d'impression de votre imprimante ou logiciel, sélectionnez toujours <strong>Échelle : 100% (ou "Taille réelle")</strong> et décochez "Ajuster à la page" pour préserver rigoureusement le gabarit 35 × 45 mm.</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Point de montage d'impression propre pour @media print -->
+  <div id="print-mount-point" class="hidden"></div>
+
+  <!-- Modal / Toast de notification -->
+  <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm z-50 transform translate-y-20 opacity-0 transition-all duration-300">
+    <i id="toast-icon" class="ph-bold ph-check text-emerald-400 text-lg"></i>
+    <span id="toast-message">Message</span>
+  </div>
+
+  <!-- SCRIPT LOGIQUE DE L'APPLICATION -->
+  <script>
+    /* ==========================================================
+       1. Constantes & Calibrages Physiques (300 DPI)
+       ========================================================== */
+    // 1 pouce = 25.4 mm
+    // À 300 DPI : 1 mm = 300 / 25.4 = 11.811 pixels
+    const DPI = 300;
+    const MM_TO_PX = DPI / 25.4;
+
+    // Dimensions officielles d'une photo d'identité
+    const PHOTO_W_MM = 35;
+    const PHOTO_H_MM = 45;
+    const PHOTO_W_PX = Math.round(PHOTO_W_MM * MM_TO_PX); // ~413 px
+    const PHOTO_H_PX = Math.round(PHOTO_H_MM * MM_TO_PX); // ~531 px
+
+    // Format 10x15 cm (4x6 pouces = 101.6 x 152.4 mm ou 100 x 150 mm)
+    // En impression photo standard, 10x15 cm est 100 x 150 mm ou 102 x 152 mm (4x6").
+    // Utilisons 150 x 100 mm pour orientation paysage, soit 1772 x 1181 px à 300 DPI.
+    const SHEET_10x15_W_MM = 150;
+    const SHEET_10x15_H_MM = 100;
+    const SHEET_10x15_W_PX = Math.round(SHEET_10x15_W_MM * MM_TO_PX); // 1772 px
+    const SHEET_10x15_H_PX = Math.round(SHEET_10x15_H_MM * MM_TO_PX); // 1181 px
+
+    // Format A4 (210 x 297 mm)
+    const SHEET_A4_W_MM = 210;
+    const SHEET_A4_H_MM = 297;
+    const SHEET_A4_W_PX = Math.round(SHEET_A4_W_MM * MM_TO_PX); // 2480 px
+    const SHEET_A4_H_PX = Math.round(SHEET_A4_H_MM * MM_TO_PX); // 3508 px
+
+    /* ==========================================================
+       2. État Global de l'Application
+       ========================================================== */
+    const state = {
+      photos: [],         // { id, img, name, crop: { x, y, scale } }
+      activeIndex: 0,
+      sheetFormat: '10x15', // '10x15' ou 'A4'
+      fillMode: 'repeat',   // 'repeat' ou 'mix'
+      drawCropMarks: true,
+      showGuides: true,
+      isDraggingCrop: false,
+      dragStart: { x: 0, y: 0 }
+    };
+
+    /* ==========================================================
+       3. Sélecteurs DOM
+       ========================================================== */
+    const fileInput = document.getElementById('file-input');
+    const dropZone = document.getElementById('drop-zone');
+    const galleryContainer = document.getElementById('gallery-container');
+    const photoCountEl = document.getElementById('photo-count');
+    const clearAllBtn = document.getElementById('clear-all-btn');
+    
+    const cropCanvas = document.getElementById('crop-canvas');
+    const cropCtx = cropCanvas.getContext('2d');
+    const cropGuide = document.getElementById('crop-guide');
+    const zoomSlider = document.getElementById('zoom-slider');
+    const zoomLabel = document.getElementById('zoom-label');
+    const toggleGuideCb = document.getElementById('toggle-guide-cb');
+    const resetCropBtn = document.getElementById('reset-crop-btn');
+
+    const previewCanvas = document.getElementById('preview-canvas');
+    const previewCtx = previewCanvas.getContext('2d');
+    const noPhotoPlaceholder = document.getElementById('no-photo-placeholder');
+    const previewDimLabel = document.getElementById('preview-dimension-label');
+
+    const format10x15Btn = document.getElementById('format-10x15-btn');
+    const formatA4Btn = document.getElementById('format-a4-btn');
+    const fillRepeatBtn = document.getElementById('fill-repeat-btn');
+    const fillMixBtn = document.getElementById('fill-mix-btn');
+    const cropLinesCb = document.getElementById('crop-lines-cb');
+
+    const downloadPngBtn = document.getElementById('download-png-btn');
+    const downloadJpgBtn = document.getElementById('download-jpg-btn');
+    const printDirectBtn = document.getElementById('print-direct-btn');
+    const themeToggle = document.getElementById('theme-toggle');
+
+    /* ==========================================================
+       4. Initialisation du Canvas de Recadrage
+       ========================================================== */
+    cropCanvas.width = PHOTO_W_PX;
+    cropCanvas.height = PHOTO_H_PX;
+
+    // Créer une image d'exemple par défaut pour que l'app soit directement manipulable
+    function initDefaultPlaceholder() {
+      const sampleCanvas = document.createElement('canvas');
+      sampleCanvas.width = 800;
+      sampleCanvas.height = 1000;
+      const sCtx = sampleCanvas.getContext('2d');
+
+      // Dégradé de fond studio photo passeport
+      const grad = sCtx.createLinearGradient(0, 0, 0, 1000);
+      grad.addColorStop(0, '#d1d5db');
+      grad.addColorStop(1, '#9ca3af');
+      sCtx.fillStyle = grad;
+      sCtx.fillRect(0, 0, 800, 1000);
+
+      // Silhouette élégante
+      sCtx.fillStyle = '#4b5563';
+      // Épaules
+      sCtx.beginPath();
+      sCtx.ellipse(400, 950, 320, 240, 0, 0, Math.PI * 2);
+      sCtx.fill();
+      // Cou
+      sCtx.fillRect(350, 600, 100, 150);
+      // Visage
+      sCtx.beginPath();
+      sCtx.ellipse(400, 480, 180, 230, 0, 0, Math.PI * 2);
+      sCtx.fillStyle = '#e5e7eb';
+      sCtx.fill();
+
+      // Cheveux
+      sCtx.beginPath();
+      sCtx.arc(400, 420, 190, Math.PI, 0, false);
+      sCtx.fillStyle = '#374151';
+      sCtx.fill();
+
+      // Texte explicatif
+      sCtx.fillStyle = '#1f2937';
+      sCtx.font = 'bold 36px Inter, sans-serif';
+      sCtx.textAlign = 'center';
+      sCtx.fillText('Photo Exemple', 400, 500);
+
+      const img = new Image();
+      img.onload = () => {
+        addPhotoRecord(img, 'Exemple portrait');
+      };
+      img.src = sampleCanvas.toDataURL();
+    }
+
+    /* ==========================================================
+       5. Gestion de l'Importation de Photos (Multi-Upload & D&D)
+       ========================================================== */
+    function handleFiles(files) {
+      if (!files || files.length === 0) return;
+      const maxPhotos = 12;
+
+      Array.from(files).forEach((file) => {
+        if (!file.type.startsWith('image/')) return;
+        if (state.photos.length >= maxPhotos) {
+          showToast(`Limite de ${maxPhotos} photos atteinte.`, 'warning');
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            addPhotoRecord(img, file.name);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function addPhotoRecord(img, name) {
+      // Calcul du zoom initial adapté pour centrer le visage
+      const scaleW = PHOTO_W_PX / img.width;
+      const scaleH = PHOTO_H_PX / img.height;
+      const baseScale = Math.max(scaleW, scaleH);
+
+      const photoRecord = {
+        id: 'photo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        img: img,
+        name: name || 'Photo',
+        crop: {
+          scale: baseScale * 1.05,
+          x: (PHOTO_W_PX - img.width * baseScale) / 2,
+          y: (PHOTO_H_PX - img.height * baseScale) / 2
+        }
+      };
+
+      state.photos.push(photoRecord);
+      state.activeIndex = state.photos.length - 1;
+      updateUI();
+    }
+
+    /* ==========================================================
+       6. Mise à jour de l'UI & Vignettes
+       ========================================================== */
+    function updateUI() {
+      photoCountEl.textContent = state.photos.length;
+      clearAllBtn.classList.toggle('hidden', state.photos.length === 0);
+
+      renderThumbnails();
+      syncCropControls();
+      renderActiveCrop();
+      renderSheetPreview();
+    }
+
+    function renderThumbnails() {
+      galleryContainer.innerHTML = '';
+      if (state.photos.length === 0) {
+        galleryContainer.innerHTML = `<div class="col-span-4 text-center text-xs text-slate-400 py-3">Aucune photo chargée</div>`;
+        return;
+      }
+
+      state.photos.forEach((photo, idx) => {
+        const isActive = idx === state.activeIndex;
+        const thumbDiv = document.createElement('div');
+        thumbDiv.className = `group relative aspect-[35/45] rounded-lg overflow-hidden border-2 cursor-pointer transition ${
+          isActive ? 'border-blue-600 ring-2 ring-blue-500/30' : 'border-slate-200 dark:border-slate-700 hover:border-slate-400'
+        }`;
+
+        // Vignette générée
+        const canvas = document.createElement('canvas');
+        canvas.width = 70;
+        canvas.height = 90;
+        const ctx = canvas.getContext('2d');
+        renderPhotoToContext(photo, ctx, 70, 90);
+
+        canvas.className = 'w-full h-full object-cover';
+        thumbDiv.appendChild(canvas);
+
+        // Bouton de suppression
+        const delBtn = document.createElement('button');
+        delBtn.innerHTML = '<i class="ph-bold ph-x text-xs"></i>';
+        delBtn.className = 'absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow';
+        delBtn.onclick = (e) => {
+          e.stopPropagation();
+          deletePhoto(idx);
+        };
+        thumbDiv.appendChild(delBtn);
+
+        // Badge index
+        const numBadge = document.createElement('div');
+        numBadge.className = 'absolute bottom-1 left-1 bg-black/60 text-[10px] text-white px-1.5 py-0.2 rounded font-mono';
+        numBadge.textContent = `#${idx + 1}`;
+        thumbDiv.appendChild(numBadge);
+
+        thumbDiv.onclick = () => {
+          state.activeIndex = idx;
+          updateUI();
+        };
+
+        galleryContainer.appendChild(thumbDiv);
+      });
+    }
+
+    function deletePhoto(index) {
+      state.photos.splice(index, 1);
+      if (state.activeIndex >= state.photos.length) {
+        state.activeIndex = Math.max(0, state.photos.length - 1);
+      }
+      updateUI();
+      showToast('Photo retirée', 'info');
+    }
+
+    /* ==========================================================
+       7. Atelier de Recadrage (Drag & Zoom)
+       ========================================================== */
+    function syncCropControls() {
+      const activePhoto = state.photos[state.activeIndex];
+      if (!activePhoto) return;
+
+      const baseScale = Math.max(PHOTO_W_PX / activePhoto.img.width, PHOTO_H_PX / activePhoto.img.height);
+      const ratio = activePhoto.crop.scale / baseScale;
+
+      zoomSlider.value = ratio.toFixed(2);
+      zoomLabel.textContent = `${ratio.toFixed(2)}x`;
+    }
+
+    function renderActiveCrop() {
+      const activePhoto = state.photos[state.activeIndex];
+      cropCtx.clearRect(0, 0, PHOTO_W_PX, PHOTO_H_PX);
+
+      if (!activePhoto) {
+        cropCtx.fillStyle = '#1e293b';
+        cropCtx.fillRect(0, 0, PHOTO_W_PX, PHOTO_H_PX);
+        return;
+      }
+
+      const { x, y, scale } = activePhoto.crop;
+      const img = activePhoto.img;
+
+      cropCtx.save();
+      cropCtx.drawImage(img, x, y, img.width * scale, img.height * scale);
+      cropCtx.restore();
+    }
+
+    // Gestion du glisser-déposer sur le Canvas de recadrage
+    cropCanvas.addEventListener('mousedown', (e) => {
+      if (!state.photos[state.activeIndex]) return;
+      state.isDraggingCrop = true;
+      const rect = cropCanvas.getBoundingClientRect();
+      state.dragStart = {
+        x: (e.clientX - rect.left) * (PHOTO_W_PX / rect.width),
+        y: (e.clientY - rect.top) * (PHOTO_H_PX / rect.height)
+      };
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!state.isDraggingCrop || !state.photos[state.activeIndex]) return;
+      const rect = cropCanvas.getBoundingClientRect();
+      const currentX = (e.clientX - rect.left) * (PHOTO_W_PX / rect.width);
+      const currentY = (e.clientY - rect.top) * (PHOTO_H_PX / rect.height);
+
+      const dx = currentX - state.dragStart.x;
+      const dy = currentY - state.dragStart.y;
+
+      const currentPhoto = state.photos[state.activeIndex];
+      currentPhoto.crop.x += dx;
+      currentPhoto.crop.y += dy;
+
+      state.dragStart = { x: currentX, y: currentY };
+
+      renderActiveCrop();
+      renderSheetPreview();
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (state.isDraggingCrop) {
+        state.isDraggingCrop = false;
+        renderThumbnails();
+      }
+    });
+
+    // Support tactile (Touch Events)
+    let lastTouchDistance = 0;
+    cropCanvas.addEventListener('touchstart', (e) => {
+      if (!state.photos[state.activeIndex]) return;
+      if (e.touches.length === 1) {
+        state.isDraggingCrop = true;
+        const rect = cropCanvas.getBoundingClientRect();
+        state.dragStart = {
+          x: (e.touches[0].clientX - rect.left) * (PHOTO_W_PX / rect.width),
+          y: (e.touches[0].clientY - rect.top) * (PHOTO_H_PX / rect.height)
+        };
+      } else if (e.touches.length === 2) {
+        lastTouchDistance = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+      }
+    }, { passive: true });
+
+    cropCanvas.addEventListener('touchmove', (e) => {
+      if (!state.photos[state.activeIndex]) return;
+      if (state.isDraggingCrop && e.touches.length === 1) {
+        const rect = cropCanvas.getBoundingClientRect();
+        const currentX = (e.touches[0].clientX - rect.left) * (PHOTO_W_PX / rect.width);
+        const currentY = (e.touches[0].clientY - rect.top) * (PHOTO_H_PX / rect.height);
+
+        const dx = currentX - state.dragStart.x;
+        const dy = currentY - state.dragStart.y;
+
+        const currentPhoto = state.photos[state.activeIndex];
+        currentPhoto.crop.x += dx;
+        currentPhoto.crop.y += dy;
+
+        state.dragStart = { x: currentX, y: currentY };
+
+        renderActiveCrop();
+        renderSheetPreview();
+      } else if (e.touches.length === 2) {
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const factor = dist / lastTouchDistance;
+        lastTouchDistance = dist;
+        applyZoom(factor);
+      }
+    }, { passive: true });
+
+    cropCanvas.addEventListener('touchend', () => {
+      state.isDraggingCrop = false;
+      renderThumbnails();
+    });
+
+    // Zoom via molette
+    cropCanvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (!state.photos[state.activeIndex]) return;
+      const zoomFactor = e.deltaY < 0 ? 1.05 : 0.95;
+      applyZoom(zoomFactor);
+    }, { passive: false });
+
+    // Slider de zoom
+    zoomSlider.addEventListener('input', (e) => {
+      const activePhoto = state.photos[state.activeIndex];
+      if (!activePhoto) return;
+
+      const baseScale = Math.max(PHOTO_W_PX / activePhoto.img.width, PHOTO_H_PX / activePhoto.img.height);
+      const newScale = baseScale * parseFloat(e.target.value);
+
+      // Conserver le centre du zoom
+      const centerX = PHOTO_W_PX / 2;
+      const centerY = PHOTO_H_PX / 2;
+      const ratio = newScale / activePhoto.crop.scale;
+
+      activePhoto.crop.x = centerX - (centerX - activePhoto.crop.x) * ratio;
+      activePhoto.crop.y = centerY - (centerY - activePhoto.crop.y) * ratio;
+      activePhoto.crop.scale = newScale;
+
+      zoomLabel.textContent = `${parseFloat(e.target.value).toFixed(2)}x`;
+
+      renderActiveCrop();
+      renderSheetPreview();
+    });
+
+    function applyZoom(factor) {
+      const activePhoto = state.photos[state.activeIndex];
+      if (!activePhoto) return;
+
+      const baseScale = Math.max(PHOTO_W_PX / activePhoto.img.width, PHOTO_H_PX / activePhoto.img.height);
+      const newScale = Math.max(baseScale * 0.5, Math.min(baseScale * 3.5, activePhoto.crop.scale * factor));
+
+      const centerX = PHOTO_W_PX / 2;
+      const centerY = PHOTO_H_PX / 2;
+      const ratio = newScale / activePhoto.crop.scale;
+
+      activePhoto.crop.x = centerX - (centerX - activePhoto.crop.x) * ratio;
+      activePhoto.crop.y = centerY - (centerY - activePhoto.crop.y) * ratio;
+      activePhoto.crop.scale = newScale;
+
+      syncCropControls();
+      renderActiveCrop();
+      renderSheetPreview();
+    }
+
+    // Réinitialiser le cadrage
+    resetCropBtn.addEventListener('click', () => {
+      const activePhoto = state.photos[state.activeIndex];
+      if (!activePhoto) return;
+
+      const baseScale = Math.max(PHOTO_W_PX / activePhoto.img.width, PHOTO_H_PX / activePhoto.img.height);
+      activePhoto.crop.scale = baseScale * 1.05;
+      activePhoto.crop.x = (PHOTO_W_PX - activePhoto.img.width * activePhoto.crop.scale) / 2;
+      activePhoto.crop.y = (PHOTO_H_PX - activePhoto.img.height * activePhoto.crop.scale) / 2;
+
+      syncCropControls();
+      renderActiveCrop();
+      renderSheetPreview();
+      renderThumbnails();
+      showToast('Cadrage réinitialisé', 'info');
+    });
+
+    // Affichage des guides
+    toggleGuideCb.addEventListener('change', (e) => {
+      state.showGuides = e.target.checked;
+      cropGuide.style.display = state.showGuides ? 'flex' : 'none';
+    });
+
+    /* ==========================================================
+       8. Dessin d'une Photo Découpée vers un Contexte
+       ========================================================== */
+    function renderPhotoToContext(photo, ctx, targetW, targetH) {
+      if (!photo) return;
+      ctx.save();
+      // Clip strict au rectangle de destination
+      ctx.beginPath();
+      ctx.rect(0, 0, targetW, targetH);
+      ctx.clip();
+
+      const scaleRatioW = targetW / PHOTO_W_PX;
+      const scaleRatioH = targetH / PHOTO_H_PX;
+
+      ctx.drawImage(
+        photo.img,
+        photo.crop.x * scaleRatioW,
+        photo.crop.y * scaleRatioH,
+        photo.img.width * photo.crop.scale * scaleRatioW,
+        photo.img.height * photo.crop.scale * scaleRatioH
+      );
+      ctx.restore();
+    }
+
+    /* ==========================================================
+       9. Génération et Rendu de la Planche d'Impression
+       ========================================================== */
+    function renderSheetPreview() {
+      if (state.photos.length === 0) {
+        noPhotoPlaceholder.classList.remove('hidden');
+        previewCanvas.classList.add('hidden');
+        return;
+      }
+      noPhotoPlaceholder.classList.add('hidden');
+      previewCanvas.classList.remove('hidden');
+
+      if (state.sheetFormat === '10x15') {
+        previewCanvas.width = SHEET_10x15_W_PX;
+        previewCanvas.height = SHEET_10x15_H_PX;
+        previewDimLabel.textContent = `10 × 15 cm • ${SHEET_10x15_W_PX} × ${SHEET_10x15_H_PX} px (300 DPI)`;
+        draw10x15Sheet(previewCtx, SHEET_10x15_W_PX, SHEET_10x15_H_PX);
+      } else {
+        previewCanvas.width = SHEET_A4_W_PX;
+        previewCanvas.height = SHEET_A4_H_PX;
+        previewDimLabel.textContent = `Feuille A4 • ${SHEET_A4_W_PX} × ${SHEET_A4_H_PX} px (300 DPI)`;
+        drawA4Sheet(previewCtx, SHEET_A4_W_PX, SHEET_A4_H_PX);
+      }
+    }
+
+    /**
+     * Disposition Planche 10x15 cm (Paysage) :
+     * 150 mm de large x 100 mm de haut.
+     * Grille de 3 colonnes x 2 lignes = 6 photos de 35 x 45 mm.
+     * Largeur requise : 3 * 35 mm = 105 mm. Marge restante : 150 - 105 = 45 mm (espace gauche/droite + gouttières).
+     * Hauteur requise : 2 * 45 mm = 90 mm. Marge restante : 100 - 90 = 10 mm.
+     */
+    function draw10x15Sheet(ctx, totalW, totalH) {
+      // Fond blanc papier photo pur
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, totalW, totalH);
+
+      const cols = 3;
+      const rows = 2;
+      const gapX_mm = 5; // espacement horizontal
+      const gapY_mm = 3; // espacement vertical
+
+      const totalGridW_mm = cols * PHOTO_W_MM + (cols - 1) * gapX_mm; // 3*35 + 10 = 115 mm
+      const totalGridH_mm = rows * PHOTO_H_MM + (rows - 1) * gapY_mm; // 2*45 + 3 = 93 mm
+
+      const startX_mm = (SHEET_10x15_W_MM - totalGridW_mm) / 2;
+      const startY_mm = (SHEET_10x15_H_MM - totalGridH_mm) / 2;
+
+      let slotIndex = 0;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const photo = getPhotoForSlot(slotIndex);
+          const x_mm = startX_mm + c * (PHOTO_W_MM + gapX_mm);
+          const y_mm = startY_mm + r * (PHOTO_H_MM + gapY_mm);
+
+          const x_px = Math.round(x_mm * MM_TO_PX);
+          const y_px = Math.round(y_mm * MM_TO_PX);
+
+          ctx.save();
+          ctx.translate(x_px, y_px);
+          renderPhotoToContext(photo, ctx, PHOTO_W_PX, PHOTO_H_PX);
+
+          // Traits de coupe
+          if (state.drawCropMarks) {
+            drawPrecisionCropMarks(ctx, PHOTO_W_PX, PHOTO_H_PX);
+          }
+          ctx.restore();
+
+          slotIndex++;
+        }
+      }
+
+      // Mentions techniques discrètes en bas de page
+      drawSheetFooter(ctx, totalW, totalH, "Format 10x15 cm • 6 Photos d'identité 35x45 mm • 300 DPI");
+    }
+
+    /**
+     * Disposition Planche A4 (Portrait) :
+     * 210 x 297 mm.
+     * Contient 4 blocs complets de 6 photos (24 photos) ou grille aérée 4x5 avec espacements précis.
+     */
+    function drawA4Sheet(ctx, totalW, totalH) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, totalW, totalH);
+
+      // On organise 4 blocs de 10x15 cm ou une grille 4 colonnes x 5 lignes (20 photos)
+      // Une grille de 4 cols x 5 lignes de 35x45mm :
+      // Largeur : 4 * 35 = 140 mm + marges
+      // Hauteur : 5 * 45 = 225 mm + marges
+      const cols = 4;
+      const rows = 5;
+      const gapX_mm = 8;
+      const gapY_mm = 8;
+
+      const totalGridW_mm = cols * PHOTO_W_MM + (cols - 1) * gapX_mm;
+      const totalGridH_mm = rows * PHOTO_H_MM + (rows - 1) * gapY_mm;
+
+      const startX_mm = (SHEET_A4_W_MM - totalGridW_mm) / 2;
+      const startY_mm = (SHEET_A4_H_MM - totalGridH_mm) / 2;
+
+      let slotIndex = 0;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const photo = getPhotoForSlot(slotIndex);
+          const x_mm = startX_mm + c * (PHOTO_W_MM + gapX_mm);
+          const y_mm = startY_mm + r * (PHOTO_H_MM + gapY_mm);
+
+          const x_px = Math.round(x_mm * MM_TO_PX);
+          const y_px = Math.round(y_mm * MM_TO_PX);
+
+          ctx.save();
+          ctx.translate(x_px, y_px);
+          renderPhotoToContext(photo, ctx, PHOTO_W_PX, PHOTO_H_PX);
+
+          if (state.drawCropMarks) {
+            drawPrecisionCropMarks(ctx, PHOTO_W_PX, PHOTO_H_PX);
+          }
+          ctx.restore();
+
+          slotIndex++;
+        }
+      }
+
+      drawSheetFooter(ctx, totalW, totalH, "Format A4 • Planche d'identités 35x45 mm certifiée 300 DPI");
+    }
+
+    /**
+     * Sélectionne la photo à afficher pour un emplacement donné selon le mode
+     */
+    function getPhotoForSlot(slotIdx) {
+      if (state.photos.length === 0) return null;
+      if (state.fillMode === 'repeat') {
+        return state.photos[state.activeIndex];
+      } else {
+        // En mode 'mix', on distribue les photos importées
+        return state.photos[slotIdx % state.photos.length];
+      }
+    }
+
+    /**
+     * Traits de découpe professionnels (Crop marks en L dans les angles extérieurs)
+     */
+    function drawPrecisionCropMarks(ctx, w, h) {
+      ctx.save();
+      ctx.strokeStyle = '#94a3b8'; // Gris discret
+      ctx.lineWidth = 1;
+      const markLength = 14; // longueur du trait
+      const offset = 4;      // décalage par rapport à l'image
+
+      // Coin haut-gauche
+      ctx.beginPath();
+      ctx.moveTo(-offset, -offset - markLength);
+      ctx.lineTo(-offset, -offset);
+      ctx.lineTo(-offset - markLength, -offset);
+      ctx.stroke();
+
+      // Coin haut-droit
+      ctx.beginPath();
+      ctx.moveTo(w + offset, -offset - markLength);
+      ctx.lineTo(w + offset, -offset);
+      ctx.lineTo(w + offset + markLength, -offset);
+      ctx.stroke();
+
+      // Coin bas-gauche
+      ctx.beginPath();
+      ctx.moveTo(-offset, h + offset + markLength);
+      ctx.lineTo(-offset, h + offset);
+      ctx.lineTo(-offset - markLength, h + offset);
+      ctx.stroke();
+
+      // Coin bas-droit
+      ctx.beginPath();
+      ctx.moveTo(w + offset, h + offset + markLength);
+      ctx.lineTo(w + offset, h + offset);
+      ctx.lineTo(w + offset + markLength, h + offset);
+      ctx.stroke();
+
+      // Cadre périphérique ultra-fin de guidage direct
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.strokeRect(0, 0, w, h);
+
+      ctx.restore();
+    }
+
+    function drawSheetFooter(ctx, w, h, text) {
+      ctx.save();
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '24px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(text, w / 2, h - 25);
+      ctx.restore();
+    }
+
+    /* ==========================================================
+       10. Événements et Boutons
+       ========================================================== */
+    // Drag & Drop fichiers
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-blue-500', 'bg-blue-50/50', 'dark:bg-blue-950/20');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-blue-500', 'bg-blue-50/50', 'dark:bg-blue-950/20');
+      });
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      if (e.dataTransfer.files) {
+        handleFiles(e.dataTransfer.files);
+      }
+    });
+
+    // Tout effacer
+    clearAllBtn.addEventListener('click', () => {
+      state.photos = [];
+      state.activeIndex = 0;
+      updateUI();
+      showToast('Toutes les photos ont été effacées', 'info');
+    });
+
+    // Sélecteur Format Papier
+    format10x15Btn.addEventListener('click', () => {
+      state.sheetFormat = '10x15';
+      format10x15Btn.classList.add('active', 'border-blue-600', 'bg-blue-50', 'dark:bg-blue-950/40', 'text-blue-700', 'dark:text-blue-300');
+      format10x15Btn.classList.remove('border-slate-200', 'dark:border-slate-700', 'text-slate-600', 'dark:text-slate-300');
+
+      formatA4Btn.classList.remove('active', 'border-blue-600', 'bg-blue-50', 'dark:bg-blue-950/40', 'text-blue-700', 'dark:text-blue-300');
+      formatA4Btn.classList.add('border-slate-200', 'dark:border-slate-700', 'text-slate-600', 'dark:text-slate-300');
+      renderSheetPreview();
+    });
+
+    formatA4Btn.addEventListener('click', () => {
+      state.sheetFormat = 'A4';
+      formatA4Btn.classList.add('active', 'border-blue-600', 'bg-blue-50', 'dark:bg-blue-950/40', 'text-blue-700', 'dark:text-blue-300');
+      formatA4Btn.classList.remove('border-slate-200', 'dark:border-slate-700', 'text-slate-600', 'dark:text-slate-300');
+
+      format10x15Btn.classList.remove('active', 'border-blue-600', 'bg-blue-50', 'dark:bg-blue-950/40', 'text-blue-700', 'dark:text-blue-300');
+      format10x15Btn.classList.add('border-slate-200', 'dark:border-slate-700', 'text-slate-600', 'dark:text-slate-300');
+      renderSheetPreview();
+    });
+
+    // Sélecteur Mode Remplissage
+    fillRepeatBtn.addEventListener('click', () => {
+      state.fillMode = 'repeat';
+      fillRepeatBtn.classList.add('active', 'border-blue-600', 'bg-blue-50', 'dark:bg-blue-950/40', 'text-blue-700', 'dark:text-blue-300');
+      fillRepeatBtn.classList.remove('border-slate-200', 'dark:border-slate-700', 'text-slate-600', 'dark:text-slate-300');
+
+      fillMixBtn.classList.remove('active', 'border-blue-600', 'bg-blue-50', 'dark:bg-blue-950/40', 'text-blue-700', 'dark:text-blue-300');
+      fillMixBtn.classList.add('border-slate-200', 'dark:border-slate-700', 'text-slate-600', 'dark:text-slate-300');
+      renderSheetPreview();
+    });
+
+    fillMixBtn.addEventListener('click', () => {
+      state.fillMode = 'mix';
+      fillMixBtn.classList.add('active', 'border-blue-600', 'bg-blue-50', 'dark:bg-blue-950/40', 'text-blue-700', 'dark:text-blue-300');
+      fillMixBtn.classList.remove('border-slate-200', 'dark:border-slate-700', 'text-slate-600', 'dark:text-slate-300');
+
+      fillRepeatBtn.classList.remove('active', 'border-blue-600', 'bg-blue-50', 'dark:bg-blue-950/40', 'text-blue-700', 'dark:text-blue-300');
+      fillRepeatBtn.classList.add('border-slate-200', 'dark:border-slate-700', 'text-slate-600', 'dark:text-slate-300');
+      renderSheetPreview();
+    });
+
+    // Traits de coupe
+    cropLinesCb.addEventListener('change', (e) => {
+      state.drawCropMarks = e.target.checked;
+      renderSheetPreview();
+    });
+
+    /* ==========================================================
+       11. Téléchargements Haute Résolution & Impression
+       ========================================================== */
+    function downloadCanvas(type = 'png') {
+      if (state.photos.length === 0) {
+        showToast('Ajoutez au moins une photo pour exporter.', 'warning');
+        return;
+      }
+
+      const mimeType = type === 'png' ? 'image/png' : 'image/jpeg';
+      const ext = type === 'png' ? 'png' : 'jpg';
+      const fileName = `Planche_Photos_Identite_${state.sheetFormat}_300DPI.${ext}`;
+
+      const link = document.createElement('a');
+      link.download = fileName;
+      link.href = previewCanvas.toDataURL(mimeType, 0.98);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showToast(`Téléchargement ${ext.toUpperCase()} (300 DPI) lancé !`, 'success');
+    }
+
+    downloadPngBtn.addEventListener('click', () => downloadCanvas('png'));
+    downloadJpgBtn.addEventListener('click', () => downloadCanvas('jpg'));
+
+    // Impression directe sans perte d'échelle
+    printDirectBtn.addEventListener('click', () => {
+      if (state.photos.length === 0) {
+        showToast('Ajoutez une photo avant dimprimer.', 'warning');
+        return;
+      }
+
+      const printMount = document.getElementById('print-mount-point');
+      printMount.innerHTML = '';
+
+      const printImg = new Image();
+      printImg.src = previewCanvas.toDataURL('image/png');
+      printImg.style.width = state.sheetFormat === '10x15' ? '150mm' : '210mm';
+      printImg.style.height = state.sheetFormat === '10x15' ? '100mm' : '297mm';
+      printImg.style.objectFit = 'contain';
+
+      printMount.appendChild(printImg);
+
+      showToast("Ouverture de la boîte d'impression...", 'info');
+      setTimeout(() => {
+        window.print();
+      }, 350);
+    });
+
+    /* ==========================================================
+       12. Utilitaires & Mode Sombre
+       ========================================================== */
+    themeToggle.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+    });
+
+    function showToast(msg, type = 'success') {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toast-message');
+      const toastIcon = document.getElementById('toast-icon');
+
+      toastMsg.textContent = msg;
+      if (type === 'success') {
+        toastIcon.className = 'ph-bold ph-check text-emerald-400 text-lg';
+      } else if (type === 'warning') {
+        toastIcon.className = 'ph-bold ph-warning text-amber-400 text-lg';
+      } else {
+        toastIcon.className = 'ph-bold ph-info text-blue-400 text-lg';
+      }
+
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      clearTimeout(window.toastTimer);
+      window.toastTimer = setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 2800);
+    }
+
+    // Démarrage initial
+    window.onload = function() {
+      initDefaultPlaceholder();
+    };
+  </script>
+</body>
+</html>
